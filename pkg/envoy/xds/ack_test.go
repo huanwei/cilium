@@ -229,3 +229,98 @@ func (s *AckSuite) TestDeleteMultipleNodes(c *C) {
 	// The resource name is ignored. For delete, we only consider the version.
 	c.Assert(comp, IsCompleted)
 }
+
+func (s *AckSuite) TestRevertInsert(c *C) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	typeURL := "type.googleapis.com/envoy.api.v2.DummyConfiguration"
+	wg := completion.NewWaitGroup(ctx)
+
+	cache := NewCache()
+	acker := NewAckingResourceMutatorWrapper(cache, IstioNodeToIP)
+
+	// Create version 1 with resource 0.
+	comp := wg.AddCompletion()
+	defer comp.Complete()
+
+	// Insert.
+	revert := acker.Upsert(typeURL, resources[0].Name, resources[0], []string{node0}, comp)
+
+	res, err := cache.Lookup(typeURL, resources[0].Name)
+	c.Assert(err, IsNil)
+	c.Assert(res, Equals, resources[0])
+
+	revert(comp)
+
+	res, err = cache.Lookup(typeURL, resources[0].Name)
+	c.Assert(err, IsNil)
+	c.Assert(res, IsNil)
+}
+
+func (s *AckSuite) TestRevertUpdate(c *C) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	typeURL := "type.googleapis.com/envoy.api.v2.DummyConfiguration"
+	wg := completion.NewWaitGroup(ctx)
+
+	cache := NewCache()
+	acker := NewAckingResourceMutatorWrapper(cache, IstioNodeToIP)
+
+	// Create version 1 with resource 0.
+	comp := wg.AddCompletion()
+	defer comp.Complete()
+
+	// Insert.
+	acker.Upsert(typeURL, resources[0].Name, resources[0], []string{node0}, comp)
+
+	res, err := cache.Lookup(typeURL, resources[0].Name)
+	c.Assert(err, IsNil)
+	c.Assert(res, Equals, resources[0])
+
+	// Update.
+	revert := acker.Upsert(typeURL, resources[0].Name, resources[1], []string{node0}, comp)
+
+	res, err = cache.Lookup(typeURL, resources[0].Name)
+	c.Assert(err, IsNil)
+	c.Assert(res, Equals, resources[1])
+
+	revert(comp)
+
+	res, err = cache.Lookup(typeURL, resources[0].Name)
+	c.Assert(err, IsNil)
+	c.Assert(res, Equals, resources[0])
+}
+
+func (s *AckSuite) TestRevertDelete(c *C) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	typeURL := "type.googleapis.com/envoy.api.v2.DummyConfiguration"
+	wg := completion.NewWaitGroup(ctx)
+
+	cache := NewCache()
+	acker := NewAckingResourceMutatorWrapper(cache, IstioNodeToIP)
+
+	// Create version 1 with resource 0.
+	comp := wg.AddCompletion()
+	defer comp.Complete()
+
+	// Insert.
+	acker.Upsert(typeURL, resources[0].Name, resources[0], []string{node0}, comp)
+
+	res, err := cache.Lookup(typeURL, resources[0].Name)
+	c.Assert(err, IsNil)
+	c.Assert(res, Equals, resources[0])
+
+	// Delete.
+	revert := acker.Delete(typeURL, resources[0].Name, []string{node0}, comp)
+
+	res, err = cache.Lookup(typeURL, resources[0].Name)
+	c.Assert(err, IsNil)
+	c.Assert(res, IsNil)
+
+	revert(comp)
+
+	res, err = cache.Lookup(typeURL, resources[0].Name)
+	c.Assert(err, IsNil)
+	c.Assert(res, Equals, resources[0])
+}

@@ -188,7 +188,7 @@ func (s *ServerSuite) TestRequestAllResources(c *C) {
 
 	// Create version 1 with resource 0.
 	time.Sleep(CacheUpdateDelay)
-	v, mod = cache.Upsert(typeURL, resources[0].Name, resources[0], false)
+	v, mod, _ = cache.Upsert(typeURL, resources[0].Name, resources[0], false)
 	c.Assert(v, Equals, uint64(1))
 	c.Assert(mod, Equals, true)
 
@@ -200,7 +200,7 @@ func (s *ServerSuite) TestRequestAllResources(c *C) {
 
 	// Create version 2 with resources 0 and 1.
 	// This time, update the cache before sending the request.
-	v, mod = cache.Upsert(typeURL, resources[1].Name, resources[1], false)
+	v, mod, _ = cache.Upsert(typeURL, resources[1].Name, resources[1], false)
 	c.Assert(v, Equals, uint64(2))
 	c.Assert(mod, Equals, true)
 
@@ -234,7 +234,7 @@ func (s *ServerSuite) TestRequestAllResources(c *C) {
 
 	// Create version 3 with resource 1.
 	time.Sleep(CacheUpdateDelay)
-	v, mod = cache.Delete(typeURL, resources[0].Name, false)
+	v, mod, _ = cache.Delete(typeURL, resources[0].Name, false)
 	c.Assert(v, Equals, uint64(3))
 	c.Assert(mod, Equals, true)
 
@@ -442,7 +442,7 @@ func (s *ServerSuite) TestRequestSomeResources(c *C) {
 
 	// Create version 1 with resource 0.
 	time.Sleep(CacheUpdateDelay)
-	v, mod = cache.Upsert(typeURL, resources[0].Name, resources[0], false)
+	v, mod, _ = cache.Upsert(typeURL, resources[0].Name, resources[0], false)
 	c.Assert(v, Equals, uint64(1))
 	c.Assert(mod, Equals, true)
 
@@ -454,7 +454,7 @@ func (s *ServerSuite) TestRequestSomeResources(c *C) {
 
 	// Create version 2 with resource 0 and 1.
 	// This time, update the cache before sending the request.
-	v, mod = cache.Upsert(typeURL, resources[1].Name, resources[1], false)
+	v, mod, _ = cache.Upsert(typeURL, resources[1].Name, resources[1], false)
 	c.Assert(v, Equals, uint64(2))
 	c.Assert(mod, Equals, true)
 
@@ -488,7 +488,7 @@ func (s *ServerSuite) TestRequestSomeResources(c *C) {
 
 	// Create version 3 with resources 0, 1 and 2.
 	time.Sleep(CacheUpdateDelay)
-	v, mod = cache.Upsert(typeURL, resources[2].Name, resources[2], false)
+	v, mod, _ = cache.Upsert(typeURL, resources[2].Name, resources[2], false)
 	c.Assert(v, Equals, uint64(3))
 	c.Assert(mod, Equals, true)
 
@@ -511,7 +511,7 @@ func (s *ServerSuite) TestRequestSomeResources(c *C) {
 
 	// Create version 4 with resources 1 and 2.
 	time.Sleep(CacheUpdateDelay)
-	v, mod = cache.Delete(typeURL, resources[0].Name, false)
+	v, mod, _ = cache.Delete(typeURL, resources[0].Name, false)
 	c.Assert(v, Equals, uint64(4))
 	c.Assert(mod, Equals, true)
 
@@ -520,12 +520,12 @@ func (s *ServerSuite) TestRequestSomeResources(c *C) {
 
 	// Updating resource 2 with the exact same value won't increase the version
 	// number. Remain at version 4.
-	v, mod = cache.Upsert(typeURL, resources[2].Name, resources[2], false)
+	v, mod, _ = cache.Upsert(typeURL, resources[2].Name, resources[2], false)
 	c.Assert(v, Equals, uint64(4))
 	c.Assert(mod, Equals, false)
 
 	// Create version 5 with resource 1.
-	v, mod = cache.Delete(typeURL, resources[1].Name, false)
+	v, mod, _ = cache.Delete(typeURL, resources[1].Name, false)
 	c.Assert(v, Equals, uint64(5))
 	c.Assert(mod, Equals, true)
 
@@ -588,7 +588,7 @@ func (s *ServerSuite) TestUpdateRequestResources(c *C) {
 
 	// Create version 1 with resources 0 and 1.
 	time.Sleep(CacheUpdateDelay)
-	v, mod = cache.tx(typeURL, map[string]proto.Message{
+	v, mod, _ = cache.tx(typeURL, map[string]proto.Message{
 		resources[0].Name: resources[0],
 		resources[1].Name: resources[1],
 	}, nil, false)
@@ -625,7 +625,7 @@ func (s *ServerSuite) TestUpdateRequestResources(c *C) {
 
 	// Create version 2 with resource 0, 1 and 2.
 	time.Sleep(CacheUpdateDelay)
-	v, mod = cache.Upsert(typeURL, resources[2].Name, resources[2], false)
+	v, mod, _ = cache.Upsert(typeURL, resources[2].Name, resources[2], false)
 	c.Assert(v, Equals, uint64(2))
 	c.Assert(mod, Equals, true)
 
@@ -719,7 +719,7 @@ func (s *ServerSuite) TestRequestStaleNonce(c *C) {
 
 	// Create version 1 with resource 0.
 	time.Sleep(CacheUpdateDelay)
-	v, mod = cache.Upsert(typeURL, resources[0].Name, resources[0], false)
+	v, mod, _ = cache.Upsert(typeURL, resources[0].Name, resources[0], false)
 	c.Assert(v, Equals, uint64(1))
 	c.Assert(mod, Equals, true)
 
@@ -731,7 +731,7 @@ func (s *ServerSuite) TestRequestStaleNonce(c *C) {
 
 	// Create version 2 with resources 0 and 1.
 	// This time, update the cache before sending the request.
-	v, mod = cache.Upsert(typeURL, resources[1].Name, resources[1], false)
+	v, mod, _ = cache.Upsert(typeURL, resources[1].Name, resources[1], false)
 	c.Assert(v, Equals, uint64(2))
 	c.Assert(mod, Equals, true)
 
@@ -779,7 +779,7 @@ func (s *ServerSuite) TestRequestStaleNonce(c *C) {
 
 	// Create version 3 with resource 1.
 	time.Sleep(CacheUpdateDelay)
-	v, mod = cache.Delete(typeURL, resources[0].Name, false)
+	v, mod, _ = cache.Delete(typeURL, resources[0].Name, false)
 	c.Assert(v, Equals, uint64(3))
 	c.Assert(mod, Equals, true)
 
