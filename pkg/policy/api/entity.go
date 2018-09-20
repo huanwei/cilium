@@ -15,7 +15,9 @@
 package api
 
 import (
+	k8sapi "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	"github.com/cilium/cilium/pkg/labels"
+	"github.com/cilium/cilium/pkg/option"
 )
 
 // Entity specifies the class of receiver/sender endpoints that do not have
@@ -67,14 +69,24 @@ var (
 		Source: labels.LabelSourceReserved,
 	})
 
+	endpointSelectorClusterEndpoint = NewESFromLabels(&labels.Label{
+		Key:    k8sapi.PolicyLabelCluster,
+		Value:  option.Config.ClusterName,
+		Source: labels.LabelSourceK8s,
+	})
+
 	// EntitySelectorMapping maps special entity names that come in
 	// policies to selectors
 	EntitySelectorMapping = map[Entity]EndpointSelectorSlice{
-		EntityAll:     {WildcardEndpointSelector},
-		EntityWorld:   {endpointSelectorWorld},
-		EntityCluster: {endpointSelectorCluster},
-		EntityHost:    {endpointSelectorHost},
-		EntityInit:    {endpointSelectorInit},
+		EntityAll:   {WildcardEndpointSelector},
+		EntityWorld: {endpointSelectorWorld},
+		EntityCluster: {
+			endpointSelectorHost,
+			endpointSelectorInit,
+			endpointSelectorClusterEndpoint,
+		},
+		EntityHost: {endpointSelectorHost},
+		EntityInit: {endpointSelectorInit},
 	}
 )
 
