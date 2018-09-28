@@ -20,11 +20,6 @@ package main
 import "C"
 
 import (
-	"fmt"
-	"net"
-	"strconv"
-
-	"github.com/cilium/cilium/pkg/envoy/cilium"
 	"github.com/cilium/cilium/proxylib/accesslog"
 	_ "github.com/cilium/cilium/proxylib/cassandra"
 	_ "github.com/cilium/cilium/proxylib/memcached/binary"
@@ -63,63 +58,14 @@ func OnNewConnection(instanceId uint64, proto string, connectionId uint64, ingre
 	if instance == nil {
 		return C.FILTER_INVALID_INSTANCE
 	}
-	// Find the parser for the proto
-	parserFactory := GetParserFactory(proto)
-	if parserFactory == nil {
-		return C.FILTER_UNKNOWN_PARSER
-	}
-	_, port, err := net.SplitHostPort(dstAddr)
-	if err != nil {
-		return C.FILTER_INVALID_ADDRESS
-	}
-	dstPort, err := strconv.ParseUint(port, 10, 32)
-	if err != nil || dstPort == 0 {
-		return C.FILTER_INVALID_ADDRESS
-	}
-	// Note: Strings passed as arguments from C must be copied to Go memory to keep them valid after this function
-	// returns
-	connection := &Connection{
-		Instance:   instance,
-		Id:         connectionId,
-		Ingress:    ingress,
-		SrcId:      srcId,
-		DstId:      dstId,
-		SrcAddr:    strcpy(srcAddr),
-		DstAddr:    strcpy(dstAddr),
-		Port:       uint32(dstPort),
-		PolicyName: strcpy(policyName),
-		ParserName: strcpy(proto),
-		OrigBuf:    origBuf,
-		ReplyBuf:   replyBuf,
-	}
-	connection.Parser = parserFactory.Create(connection)
-	if connection.Parser == nil {
-		// Parser rejected the new connection based on the connection metadata
-		return C.FILTER_POLICY_DROP
-	}
 
-	mutex.Lock()
-	connections[connectionId] = connection
-	mutex.Unlock()
-
-	return C.FILTER_OK
-}
-
-// Skip bytes in input, or exhaust the input.
-// If input is exhausted 'bytes' will return the number of bytes remaining beyond the input
-func advanceInput(bytes, unit, offset int, data *[][]byte) (int, int, int) {
-	for bytes > 0 && unit < len(*data) {
-		rem := len((*data)[unit]) - offset // this much data left in unit
-		if bytes < rem {                   // more than 'bytes' bytes in unit
-			offset += bytes
-			bytes = 0
-		} else { // go to the beginning of the next unit
-			bytes -= rem
-			unit++
-			offset = 0
-		}
+	res, conn := NewConnection(instance, strcpy(proto), connectionId, ingress, srcId, dstId, strcpy(srcAddr), strcpy(dstAddr), strcpy(policyName), origBuf, replyBuf)
+	if res == OK {
+		mutex.Lock()
+		connections[connectionId] = conn
+		mutex.Unlock()
 	}
-	return bytes, unit, offset
+	return C.FilterResult(res)
 }
 
 // Each connection is assumed to be called from a single thread, so accessing connection metadata
@@ -144,7 +90,7 @@ func advanceInput(bytes, unit, offset int, data *[][]byte) (int, int, int) {
 // us again for the reverse direction input.
 //
 //export OnData
-func OnData(connectionId uint64, reply, endStream bool, data *[][]byte, filterOps *[]C.FilterOp) (res C.FilterResult) {
+func OnData(connectionId uint64, reply, endStream bool, data *[][]byte, filterOps *[][2]int64) C.FilterResult {
 	// Find the connection
 	mutex.RLock()
 	connection, ok := connections[connectionId]
@@ -153,61 +99,7 @@ func OnData(connectionId uint64, reply, endStream bool, data *[][]byte, filterOp
 		return C.FILTER_UNKNOWN_CONNECTION
 	}
 
-	defer func() {
-		// Recover from any possible parser datapath panics
-		if r := recover(); r != nil {
-			// Log the Panic into accesslog
-			connection.Log(cilium.EntryType_Denied,
-				&cilium.LogEntry_GenericL7{
-					GenericL7: &cilium.L7LogEntry{
-						Proto: connection.ParserName,
-						Fields: map[string]string{
-							// "status" is shown in Cilium monitor
-							"status": fmt.Sprintf("Panic: %s", r),
-						},
-					},
-				})
-			res = C.FILTER_PARSER_ERROR // Causes the connection to be dropped
-		}
-	}()
-
-	unit := 0
-	offset := 0
-
-	// Loop until `filterOps` becomes full, or parser is done with the data.
-	for len(*filterOps) < cap(*filterOps) {
-		op, bytes := connection.Parser.OnData(reply, endStream, (*data)[unit:], offset)
-		if op == NOP {
-			break // No operations after NOP
-		}
-		if bytes == 0 {
-			return C.FILTER_PARSER_ERROR
-		}
-		*filterOps = append(*filterOps, C.FilterOp{C.uint64_t(op), C.int64_t(bytes)})
-
-		if op == MORE {
-			// Need more data before can parse ahead.
-			// Parser will see the unused data again in the next call, which will take place
-			// after there are at least 'bytes' of additional data to parse.
-			break
-		}
-
-		if op == PASS || op == DROP {
-			_, unit, offset = advanceInput(bytes, unit, offset, data)
-			// Loop back to parser even if have no more data to allow the parser to
-			// inject frames at the end of the input.
-		}
-
-		// Injection does not advance input data, but instructs the datapath to
-		// send data the parser has placed in the inject buffer. We need to stop processing
-		// if inject buffer becomes full as the parser in this case can't inject any more
-		// data.
-		if op == INJECT && connection.IsInjectBufFull(reply) {
-			// return if inject buffer becomes full
-			break
-		}
-	}
-	return C.FILTER_OK
+	return C.FilterResult(connection.OnData(reply, endStream, data, filterOps))
 }
 
 // Make this more general connection event callback
