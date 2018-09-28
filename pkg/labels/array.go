@@ -70,6 +70,26 @@ nextLabel:
 	return true
 }
 
+// Equals returns true if all ls equals the needed LabelsArray regardless of the
+// order they are in the slice.
+func (ls LabelArray) Equals(needed LabelArray) bool {
+	if len(ls) != len(needed) {
+		return false
+	}
+
+nextLabel:
+	for _, neededLabel := range needed {
+		for _, l := range ls {
+			if neededLabel.Equals(l) {
+				continue nextLabel
+			}
+		}
+		return false
+	}
+
+	return true
+}
+
 // Lacks is identical to Contains but returns all missing labels
 func (ls LabelArray) Lacks(needed LabelArray) LabelArray {
 	missing := LabelArray{}
